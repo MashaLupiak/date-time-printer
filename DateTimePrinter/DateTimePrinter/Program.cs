@@ -1,8 +1,10 @@
 ﻿using DateTimePrinter;
-using System.Text.Json;
 
 string configPath = "config.json";
-Config config = LoadConfig();
+var loader = new ConfigLoader(configPath);
+Config config = loader.LoadConfig();
+
+var reloader = new ConfigReloader(loader);
 
 using var watcher = new FileSystemWatcher(Directory.GetCurrentDirectory(), configPath)
 {
@@ -13,13 +15,15 @@ using var watcher = new FileSystemWatcher(Directory.GetCurrentDirectory(), confi
 watcher.Changed += OnConfigChanged;
 watcher.Created += OnConfigCreated;
 
+void OnConfigChanged(object sender, FileSystemEventArgs e) => reloader.ReloadConfig(ref config);
+void OnConfigCreated(object sender, FileSystemEventArgs e) => reloader.ReloadConfig(ref config);
 
 while (true)
 {
     try
     {
         var local = config; //to avoid race condition
-        string date = DateTime.Now.ToString(local.DateFormat);
+        string date = DateTime.UtcNow.ToString(local.DateFormat);
         Console.WriteLine($"{local.Message} | {date}");
         Thread.Sleep(local.IntervalInSeconds * 1000);
     }
@@ -29,27 +33,5 @@ while (true)
     }
 }
 
-void OnConfigChanged(object sender, FileSystemEventArgs e) => ReloadConfig();
-void OnConfigCreated(object sender, FileSystemEventArgs e) => ReloadConfig();
-
-Config LoadConfig()
-{
-    string json = File.ReadAllText(configPath);
-    var config = JsonSerializer.Deserialize<Config>(json);
-    return config;
-}
-
-void ReloadConfig()
-{
-    try
-    {
-        config = LoadConfig(); 
-        Console.WriteLine("Config reloaded");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine("Config reload error: " + ex.Message);
-    }
-}
 
 
